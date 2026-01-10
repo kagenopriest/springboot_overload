@@ -1,0 +1,10 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+*.class
+.classpath
+.project
+.settings/
+.vscode/
+loadtest-app.tar
+*.log

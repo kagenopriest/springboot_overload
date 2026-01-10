@@ -45,7 +45,10 @@ ab -n 100000 -c 1000 http://localhost:8080/api/load
 **Warning**: Each request allocates 1MB. High concurrency here will quickly cause an OOM Kill.
 
 ## Offline Export
-To move this image to your offline cluster:
-1. **Save**: `docker save -o loadtest-app.tar kagenopriest/loadtest-app:latest`
-2. **Transfer**: Move `loadtest-app.tar` to your cluster.
-3. **Load**: `docker load -i loadtest-app.tar`
+The Docker image has been saved to your project folder for offline transfer.
+- **File**: `d:\projects\springboot_overload\loadtest-app.tar`
+
+To usage on your offline cluster:
+1. **Transfer**: Move the `.tar` file to your cluster nodes.
+2. **Load**: `docker load -i loadtest-app.tar`
+3. **Run**: `docker run -p 8080:8080 kagenopriest/loadtest-app:latest`
