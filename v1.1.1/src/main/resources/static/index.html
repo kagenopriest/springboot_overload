@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>K8s Load Balancer Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { margin-bottom: 0.5rem; }
+        p { color: var(--text-secondary); margin-bottom: 2rem; }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .controls {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        input {
+            background: #334155;
+            border: 1px solid #475569;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        button {
+            border: none;
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+        }
+
+        .btn-blue { background-color: var(--accent-blue); }
+        .btn-blue:hover { background-color: #2563eb; }
+
+        .btn-green { background-color: var(--accent-green); }
+        .btn-green:hover { background-color: #059669; }
+        
+        .btn-stop { background-color: var(--accent-red); }
+        .btn-stop:hover { background-color: #dc2626; }
+
+        canvas {
+            width: 100%;
+            height: 300px;
+            background: #0f172a;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .node-legend {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .legend-item span {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Load Balancer Visualizer</h1>
+    <p>Distributing traffic across Kubernetes Nodes</p>
+
+    <div class="dashboard">
+        <div class="card controls">
+            <input type="number" id="iterations" value="50000000" placeholder="Iterations (e.g. 50M)">
+            <button class="btn-blue" onclick="triggerLoad()">Trigger CPU Spike</button>
+            <button class="btn-green" id="loopBtn" onclick="toggleLoop()">Start Loop</button>
+        </div>
+
+        <div class="card">
+            <h3>CPU Load</h3>
+            <div class="node-legend" id="cpuLegend"></div>
+            <canvas id="cpuChart"></canvas>
+        </div>
+
+        <div class="card">
+            <h3>Memory Usage (MB)</h3>
+            <div class="node-legend" id="memLegend"></div>
+            <canvas id="memChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // Simple Chart implementation to avoid external dependencies (offline compatible)
+        class LineChart {
+            constructor(canvasId, title) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.title = title;
+                this.data = {}; // { nodeName: [values...] }
+                this.colors = {};
+                this.maxPoints = 50;
+                
+                // Colors for different nodes
+                this.availableColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+                this.resolution = window.devicePixelRatio || 1;
+                
+                // Resize observer
+                new ResizeObserver(() => this.resize()).observe(this.canvas);
+                this.resize();
+            }
+
+            resize() {
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width * this.resolution;
+                this.canvas.height = rect.height * this.resolution;
+                this.ctx.scale(this.resolution, this.resolution);
+                this.draw();
+            }
+
+            addData(nodeName, value) {
+                if (!this.data[nodeName]) {
+                    this.data[nodeName] = new Array(this.maxPoints).fill(0);
+                    // Assign a consistent color based on node name hash or just next available
+                    const colorIdx = Object.keys(this.data).length % this.availableColors.length;
+                    this.colors[nodeName] = this.availableColors[colorIdx];
+                    this.updateLegend();
+                }
+
+                // Append new value, shift old
+                this.data[nodeName].push(value);
+                if (this.data[nodeName].length > this.maxPoints) {
+                    this.data[nodeName].shift();
+                }
+
+                this.draw();
+            }
+
+            updateLegend() {
+                const parent = this.canvas.parentElement.querySelector('.node-legend');
+                parent.innerHTML = '';
+                Object.keys(this.data).forEach(node => {
+                    const div = document.createElement('div');
+                    div.className = 'legend-item';
+                    div.innerHTML = `<span style="background-color: ${this.colors[node]}"></span>${node}`;
+                    parent.appendChild(div);
+                });
+            }
+
+            draw() {
+                const width = this.canvas.width / this.resolution;
+                const height = this.canvas.height / this.resolution;
+                
+                this.ctx.clearRect(0, 0, width, height);
+                
+                // Draw Grid
+                this.ctx.strokeStyle = '#334155';
+                this.ctx.lineWidth = 0.5;
+                this.ctx.beginPath();
+                for(let i=0; i<5; i++) {
+                    let y = height - (height/5)*i;
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(width, y);
+                }
+                this.ctx.stroke();
+
+                // Find global max for scaling
+                let maxVal = 0;
+                Object.values(this.data).forEach(arr => {
+                    maxVal = Math.max(maxVal, ...arr);
+                });
+                if (maxVal === 0) maxVal = 1;
+                maxVal = maxVal * 1.2; // Add some headroom
+
+                // Draw Lines
+                Object.keys(this.data).forEach(node => {
+                    const points = this.data[node];
+                    const color = this.colors[node];
+                    
+                    this.ctx.strokeStyle = color;
+                    this.ctx.lineWidth = 2;
+                    this.ctx.beginPath();
+                    
+                    points.forEach((val, idx) => {
+                        const x = (idx / (this.maxPoints - 1)) * width;
+                        const y = height - ((val / maxVal) * height);
+                        if (idx === 0) this.ctx.moveTo(x, y);
+                        else this.ctx.lineTo(x, y);
+                    });
+                    this.ctx.stroke();
+                });
+            }
+        }
+
+        const cpuChart = new LineChart('cpuChart', 'CPU');
+        const memChart = new LineChart('memChart', 'Memory');
+
+        // Polling Logic
+        function pollStats() {
+            fetch('/api/stats')
+                .then(res => res.json())
+                .then(data => {
+                    cpuChart.addData(data.nodeName, data.cpuLoad);
+                    // Convert bytes to MB
+                    memChart.addData(data.nodeName, data.usedMemoryBytes / (1024 * 1024));
+                })
+                .catch(err => console.error("Poll failed", err));
+        }
+
+        // Start polling every 500ms
+        setInterval(pollStats, 500);
+
+        // Load Trigger Logic
+        async function triggerLoad() {
+            const iterations = document.getElementById('iterations').value;
+            console.log("Triggering load...", iterations);
+            try {
+                await fetch(`/api/cpu?iterations=${iterations}`);
+                console.log("Load request sent");
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        let loopInterval = null;
+        function toggleLoop() {
+            const btn = document.getElementById('loopBtn');
+            if (loopInterval) {
+                clearInterval(loopInterval);
+                loopInterval = null;
+                btn.innerText = "Start Loop";
+                btn.classList.remove('btn-stop');
+                btn.classList.add('btn-green');
+            } else {
+                triggerLoad(); // Fire one immediately
+                loopInterval = setInterval(triggerLoad, 2000); // Fire every 2s
+                btn.innerText = "Stop Loop";
+                btn.classList.remove('btn-green');
+                btn.classList.add('btn-stop');
+            }
+        }
+    </script>
+</body>
+</html>

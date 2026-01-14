@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadtest-app
+  labels:
+    app: loadtest
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loadtest
+  template:
+    metadata:
+      labels:
+        app: loadtest
+    spec:
+      # Ensure pods are scheduled on both nodes (Control Plane can run pods too if untainted)
+      # This Anti-Affinity rule prefers NOT to schedule a pod on a node that already has one.
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - loadtest
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: loadtest-app
+        image: kagenopriest/loadtest-app:v1.1.1
+        imagePullPolicy: Always
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "1000m" # Request 1 full core
+            memory: "128Mi"
+          limits:
+            cpu: "4000m" # Allow up to 4 cores per pod (since you have 20!)
+            memory: "1Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loadtest-service
+spec:
+  # NodePort allows you to access it via <ControlPlaneIP>:30080 or <WorkerIP>:30080
+  type: NodePort 
+  selector:
+    app: loadtest
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+      nodePort: 30080
+  # default sessionAffinity is "None" which means Round Robin
