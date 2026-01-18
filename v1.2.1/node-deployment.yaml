@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadtest-node
+  labels:
+    app: loadtest-node
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loadtest-node
+  template:
+    metadata:
+      labels:
+        app: loadtest-node
+    spec:
+      containers:
+      - name: loadtest-node
+        image: kagenopriest/loadtest-node:1.2.1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "128Mi"
+          limits:
+            cpu: "2000m"
+            memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loadtest-node-service
+spec:
+  type: LoadBalancer # Or ClusterIP. LoadBalancer/NodePort makes it easier for you to find IPs if testing externally
+  selector:
+    app: loadtest-node
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080

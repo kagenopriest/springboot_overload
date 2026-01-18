@@ -29,16 +29,16 @@ spec:
       containers:
       - name: loadtest-app
         image: kagenopriest/loadtest-app:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
-        resources:
-          requests:
-            cpu: "250m"
-            memory: "128Mi"
-          limits:
-            cpu: "500m" # Limit to see CPU stress effects
-            memory: "256Mi"
+          resources:
+            requests:
+              cpu: "1000m" # Request 1 full core
+              memory: "128Mi"
+            limits:
+              cpu: "4000m" # Allow up to 4 cores per pod (since you have 20!)
+              memory: "1Gi"
 ---
 apiVersion: v1
 kind: Service
