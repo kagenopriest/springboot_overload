@@ -20,8 +20,25 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
-        ports:
-        - containerPort: 8080
+      # Ensure pods spread across nodes
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - loadtest-node
+            topologyKey: "kubernetes.io/hostname"
+      # Allow scheduling on Control Plane
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
 ---
 apiVersion: v1
 kind: Service
