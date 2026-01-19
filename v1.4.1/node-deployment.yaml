@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadtest-node
+  labels:
+    app: loadtest-node
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: loadtest-node
+  template:
+    metadata:
+      labels:
+        app: loadtest-node
+    spec:
+      containers:
+      - name: loadtest-node
+        image: kagenopriest/loadtest-node:1.4.1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+      # Ensure pods spread across nodes
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - loadtest-node
+            topologyKey: "kubernetes.io/hostname"
+      # Allow scheduling on Control Plane
+      tolerations:
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: loadtest-node-service
+spec:
+  type: LoadBalancer 
+  selector:
+    app: loadtest-node
+  ports:
+      port: 80
+      targetPort: 8080
+---
+# HEADLESS SERVICE FOR DISCOVERY
+apiVersion: v1
+kind: Service
+metadata:
+  name: loadtest-node-headless
+spec:
+  clusterIP: None
+  selector:
+    app: loadtest-node
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080

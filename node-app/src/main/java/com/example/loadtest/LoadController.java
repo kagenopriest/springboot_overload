@@ -36,14 +36,26 @@ public class LoadController {
 
     @GetMapping("/load/start")
     @Operation(summary = "Start Load", description = "Starts continuous CPU/Memory stress.")
-    public String startLoad(@RequestParam(defaultValue = "cpu") String type) {
-        if (running.get())
-            return "Load already running on " + getPodName();
+    public String startLoad(
+            @RequestParam(defaultValue = "cpu") String type,
+            @RequestParam(defaultValue = "1") int cores,
+            @RequestParam(defaultValue = "1024") int memoryMB) {
+
+        if (running.get()) {
+            // Stop previous to restart with new params (simple reset logic)
+            stopLoad();
+        }
         running.set(true);
 
         if ("cpu".equalsIgnoreCase(type)) {
-            int cores = Runtime.getRuntime().availableProcessors();
-            for (int i = 0; i < cores; i++) {
+            // Cap cores at available processors to prevent total freeze if requested >
+            // available
+            int available = Runtime.getRuntime().availableProcessors();
+            int targetCores = Math.min(cores, available);
+            if (targetCores < 1)
+                targetCores = 1;
+
+            for (int i = 0; i < targetCores; i++) {
                 executor.submit(() -> {
                     while (running.get()) {
                         double result = 0;
@@ -52,22 +64,41 @@ public class LoadController {
                     }
                 });
             }
-            return "CPU Stress Started on " + cores + " cores. Pod: " + getPodName();
+            return "CPU Stress Scenarios Started on " + targetCores + " cores (Requested: " + cores + "). Pod: "
+                    + getPodName();
         } else {
-            // Memory leak simulation
+            // Memory stress
+            int targetBytes = memoryMB * 1024 * 1024;
             executor.submit(() -> {
                 List<byte[]> memory = new ArrayList<>();
+                long allocated = 0;
+                while (running.get() && allocated < targetBytes) {
+                    try {
+                        int chunkSize = 10 * 1024 * 1024; // 10MB chunks
+                        if (allocated + chunkSize > targetBytes)
+                            chunkSize = (int) (targetBytes - allocated);
+
+                        memory.add(new byte[chunkSize]);
+                        allocated += chunkSize;
+                        Thread.sleep(500); // Gradual fill
+                    } catch (OutOfMemoryError | InterruptedException e) {
+                        // Hold what we have
+                        try {
+                            Thread.sleep(1000);
+                        } catch (Exception ex) {
+                        }
+                    }
+                }
+                // Keep holding memory until stopped
                 while (running.get()) {
                     try {
-                        memory.add(new byte[1024 * 1024]); // 1MB
-                        Thread.sleep(100);
-                    } catch (OutOfMemoryError | InterruptedException e) {
-                        memory.clear();
+                        Thread.sleep(1000);
+                    } catch (Exception e) {
                     }
                 }
                 memory.clear();
             });
-            return "Memory Stress Started. Pod: " + getPodName();
+            return "Memory Stress Started: Target " + memoryMB + "MB. Pod: " + getPodName();
         }
     }
 

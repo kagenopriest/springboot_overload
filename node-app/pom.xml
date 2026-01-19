@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.example</groupId>
 	<artifactId>loadtest</artifactId>
-	<version>0.0.2-SNAPSHOT</version>
+	<version>1.4.1</version>
 	<name>loadtest</name>
 	<description>Spring Boot Load Test with Swagger</description>
 	<url/>

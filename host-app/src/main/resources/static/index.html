@@ -4,263 +4,408 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LoadTest Host Dashboard</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Distributed Load Test Master v1.4.1</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent: #00d2d3;
+            --accent-hover: #01a3a4;
+            --danger: #ff6b6b;
+            --success: #1dd1a1;
+        }
+
         body {
-            background-color: #f8f9fa;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
             padding: 20px;
         }
 
-        .card {
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        h1,
+        h2 {
+            color: var(--accent);
         }
 
-        .console {
-            background: #000;
-            color: #0f0;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: var(--text-muted);
+        }
+
+        input,
+        select {
+            width: 100%;
             padding: 10px;
-            height: 150px;
-            overflow-y: scroll;
-            font-family: monospace;
+            background: #333;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        button.success {
+            background: var(--success);
+            color: #000;
+        }
+
+        .flex {
+            display: flex;
+            gap: 10px;
+        }
+
+        #nodeList {
+            list-style: none;
+            padding: 0;
+        }
+
+        #nodeList li {
+            background: #333;
+            padding: 10px;
+            margin-bottom: 5px;
+            border-left: 3px solid var(--accent);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .chart-container {
             position: relative;
             height: 300px;
+            width: 100%;
+        }
+
+        pre {
+            background: #111;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 200px;
+        }
+
+        /* Footer Signature */
+        .footer {
+            margin-top: 40px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            border-top: 1px solid #333;
+            padding-top: 20px;
+        }
+
+        .footer span {
+            color: var(--accent);
+            font-weight: bold;
         }
     </style>
 </head>
 
 <body>
+
     <div class="container">
-        <h1 class="mb-4 text-center">LoadTest Host Dashboard v1.3.1</h1>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h1>Load Test Master v1.4.1</h1>
+            <code>Host Pod: <span id="hostPodName">Loading...</span></code>
+        </div>
 
-        <!-- Section 1: Nodes -->
+        <!-- Top Section: Discovery & Control -->
         <div class="card">
-            <div class="card-header bg-primary text-white">1. Node Management</div>
-            <div class="card-body">
-                <div class="input-group mb-3">
-                    <input type="text" id="nodeUrl" class="form-control"
-                        placeholder="Enter Node URL (e.g., http://10.244.1.5:8080)">
-                    <button class="btn btn-success" onclick="addNode()">Add Node</button>
-                    <button class="btn btn-warning" onclick="clearNodes()">Clear All</button>
+            <h2>1. Node Discovery</h2>
+            <p style="color:var(--text-muted)">Enter the Service URL (ClusterIP/Headless) to auto-discover all pods.</p>
+            <div class="flex">
+                <input type="text" id="serviceUrl" value="http://loadtest-node-headless:8080"
+                    placeholder="http://service-name:8080">
+                <button onclick="discoverNodes()">Discover Nodes</button>
+                <button class="danger" onclick="clearNodes()">Clear All</button>
+            </div>
+            <div id="discoveryLog" style="margin-top:10px; font-size: 0.9em; color: var(--success)"></div>
+        </div>
+
+        <div class="grid">
+            <!-- Sidebar: Controls & List -->
+            <div>
+                <div class="card">
+                    <h2>2. Load Control</h2>
+                    <div class="control-group">
+                        <label>Load Type</label>
+                        <select id="loadType">
+                            <option value="cpu">CPU Stress</option>
+                            <option value="memory">Memory Fill</option>
+                        </select>
+                    </div>
+
+                    <div id="cpuConfig">
+                        <label>CPU Cores</label>
+                        <input type="number" id="cpuCores" value="1" min="1">
+                    </div>
+
+                    <div id="memConfig" style="display:none;">
+                        <label>Memory (MB)</label>
+                        <input type="number" id="memoryMB" value="512" step="128">
+                    </div>
+
+                    <div class="flex">
+                        <button class="success" style="flex:1" onclick="controlLoad('start')">START LOAD</button>
+                        <button class="danger" style="flex:1" onclick="controlLoad('stop')">STOP LOAD</button>
+                    </div>
+                    <pre id="controlResponse" style="margin-top:10px; display:none;"></pre>
                 </div>
-                <h5>Registered Nodes:</h5>
-                <ul id="nodeList" class="list-group"></ul>
+
+                <div class="card">
+                    <h2>Active Nodes</h2>
+                    <ul id="nodeList">
+                        <!-- Nodes populated here -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Main Area: Observation -->
+            <div>
+                <div class="card">
+                    <div style="display:flex; justify-content:space-between;">
+                        <h2>3. Observation</h2>
+                        <select id="graphType" onchange="updateChartType()" style="width: auto;">
+                            <option value="bar">Bar Chart</option>
+                            <option value="line">Line Chart</option>
+                            <option value="doughnut">Doughnut</option>
+                            <option value="radar">Radar</option>
+                        </select>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="clusterChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Logs</h3>
+                    <pre id="logs">System Ready...</pre>
+                </div>
             </div>
         </div>
 
-        <!-- Section 2: Controls -->
-        <div class="card">
-            <div class="card-header bg-danger text-white">2. Load Controls</div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-md-6 border-end">
-                        <h4>CPU Stress</h4>
-                        <p>Uses all available cores on nodes.</p>
-                        <button class="btn btn-danger btn-lg" onclick="control('start', 'cpu')">START CPU LOAD</button>
-                        <button class="btn btn-dark btn-lg" onclick="control('stop', 'cpu')">STOP</button>
-                    </div>
-                    <div class="col-md-6">
-                        <h4>Memory Stress</h4>
-                        <p>Simulates memory leak (10MB/s).</p>
-                        <button class="btn btn-warning btn-lg" onclick="control('start', 'memory')">START MEM
-                            LOAD</button>
-                        <button class="btn btn-dark btn-lg" onclick="control('stop', 'memory')">STOP</button>
-                    </div>
-                </div>
-                <div class="mt-3">
-                    <h6>Log:</h6>
-                    <div id="console" class="console"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Section 3: Graphs -->
-        <div class="card">
-            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                <span>3. Real-time Metrics</span>
-                <select id="graphType" class="form-select w-auto" onchange="updateChartType()">
-                    <option value="bar">Bar Chart</option>
-                    <option value="line">Line Chart</option>
-                    <option value="radar">Radar Chart</option>
-                    <option value="polarArea">Polar Area</option>
-                    <option value="doughnut">Doughnut</option>
-                </select>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h5 class="text-center">CPU Usage (%)</h5>
-                        <div class="chart-container">
-                            <canvas id="cpuChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <h5 class="text-center">Memory Usage (MB)</h5>
-                        <div class="chart-container">
-                            <canvas id="memChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <div class="footer">
+            Designed and owned by <span>KagenouPriest</span>
         </div>
     </div>
 
     <script>
-        const API_BASE = '/api';
+        let chartInstance = null;
+        let registeredNodes = [];
 
-        // --- Node Management ---
-        function fetchNodes() {
-            fetch(`${API_BASE}/cluster-stats`) // Use stats to check connectivity/status
-                .then(r => r.json())
-                .then(statsList => {
-                    const list = document.getElementById('nodeList');
-                    list.innerHTML = '';
-                    // First clear list, then repopulate based on registered nodes tracked by Host and their stats
-                    // Actually, let's just ask for nodes first, then match with stats
-                    fetch(`${API_BASE}/nodes`)
-                        .then(r => r.json())
-                        .then(nodes => {
-                            list.innerHTML = '';
-                            nodes.forEach(nodeUrl => {
-                                const stat = statsList.find(s => s.nodeUrl === nodeUrl);
-                                let badge = '<span class="badge bg-secondary">Unknown</span>';
-                                let podName = 'Connecting...';
+        // --- CHART SETUP ---
+        const ctx = document.getElementById('clusterChart').getContext('2d');
 
-                                if (stat) {
-                                    if (stat.error) {
-                                        badge = '<span class="badge bg-danger">Unreachable</span>';
-                                        podName = 'Error';
-                                    } else {
-                                        if (stat.loading) badge = '<span class="badge bg-warning text-dark">Running</span>';
-                                        else badge = '<span class="badge bg-success">Idle</span>';
-                                        podName = stat.podName;
-                                    }
-                                }
+        function initChart(type) {
+            if (chartInstance) chartInstance.destroy();
 
-                                list.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>${podName}</strong> <br/>
-                                        <small class="text-muted">${nodeUrl}</small>
-                                    </div>
-                                    ${badge}
-                                </li>`;
-                            });
-                        });
-                });
-        }
-
-        function addNode() {
-            const url = document.getElementById('nodeUrl').value;
-            if (!url) return;
-            fetch(`${API_BASE}/nodes`, { method: 'POST', body: url })
-                .then(r => r.text())
-                .then(msg => { log(msg); fetchNodes(); });
-        }
-
-        function clearNodes() {
-            fetch(`${API_BASE}/nodes`, { method: 'DELETE' })
-                .then(r => r.text())
-                .then(msg => { log(msg); fetchNodes(); });
-        }
-
-        // --- Controls ---
-        function control(action, type) {
-            log(`Sending ${action.toUpperCase()} command for ${type}...`);
-            fetch(`${API_BASE}/control/${action}?type=${type}`, { method: 'POST' })
-                .then(r => r.text())
-                .then(msg => log(msg));
-        }
-
-        function log(msg) {
-            const c = document.getElementById('console');
-            c.innerText += `> ${msg}\n`;
-            c.scrollTop = c.scrollHeight;
-        }
-
-        // --- Charts ---
-        let cpuChartInstance = null;
-        let memChartInstance = null;
-        let currentChartType = 'bar';
-
-        function initCharts(type) {
-            currentChartType = type;
-            const cpuCtx = document.getElementById('cpuChart').getContext('2d');
-            const memCtx = document.getElementById('memChart').getContext('2d');
-
-            if (cpuChartInstance) cpuChartInstance.destroy();
-            if (memChartInstance) memChartInstance.destroy();
-
-            const commonOptions = {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: (type === 'radar' || type === 'polarArea' || type === 'doughnut') ? {} : { y: { beginAtZero: true } },
-                animation: false
-            };
-
-            cpuChartInstance = new Chart(cpuCtx, {
+            chartInstance = new Chart(ctx, {
                 type: type,
-                data: { labels: [], datasets: [{ label: 'CPU %', data: [], backgroundColor: 'rgba(54, 162, 235, 0.5)', borderColor: 'rgba(54, 162, 235, 1)', borderWidth: 1 }] },
-                options: { ...commonOptions, scales: (type === 'radar' || type === 'polarArea' || type === 'doughnut') ? {} : { y: { beginAtZero: true, max: 100 } } }
-            });
-
-            memChartInstance = new Chart(memCtx, {
-                type: type,
-                data: { labels: [], datasets: [{ label: 'Memory (MB)', data: [], backgroundColor: 'rgba(255, 99, 132, 0.5)', borderColor: 'rgba(255, 99, 132, 1)', borderWidth: 1 }] },
-                options: commonOptions
+                data: {
+                    labels: [], // Node Names
+                    datasets: [
+                        {
+                            label: 'CPU Usage (%)',
+                            data: [],
+                            backgroundColor: 'rgba(29, 209, 161, 0.5)',
+                            borderColor: '#1dd1a1',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Memory Usage (MB)',
+                            data: [],
+                            backgroundColor: 'rgba(0, 210, 211, 0.5)',
+                            borderColor: '#00d2d3',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#444' } },
+                        x: { grid: { color: '#444' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: 'white' } }
+                    }
+                }
             });
         }
 
         function updateChartType() {
             const type = document.getElementById('graphType').value;
-            initCharts(type);
+            initChart(type);
         }
 
-        // Polling loop
-        setInterval(() => {
-            fetch(`${API_BASE}/cluster-stats`)
-                .then(r => r.json())
-                .then(stats => {
-                    const labels = [];
-                    const cpuData = [];
-                    const memData = [];
+        // --- API CALLS ---
 
-                    stats.forEach(s => {
-                        // Priority: PodName > Hostname in URL > URL
-                        let name = s.podName;
-                        if (!name || name === "Unknown") {
-                            // Extract IP from URL if PodName missing
-                            try { name = new URL(s.nodeUrl).hostname; } catch (e) { name = s.nodeUrl; }
-                        }
+        async function discoverNodes() {
+            const url = document.getElementById('serviceUrl').value;
+            log(`Discovering nodes from: ${url}...`);
 
-                        labels.push(name);
-                        cpuData.push(s.cpuUsage || 0);
-                        memData.push(s.memoryUsage || 0);
-                    });
-
-                    if (cpuChartInstance) {
-                        cpuChartInstance.data.labels = labels;
-                        cpuChartInstance.data.datasets[0].data = cpuData;
-                        cpuChartInstance.update();
-                    }
-                    if (memChartInstance) {
-                        memChartInstance.data.labels = labels;
-                        memChartInstance.data.datasets[0].data = memData;
-                        memChartInstance.update();
-                    }
-
-                    // Refresh node list status occasionally (cheap way)
-                    // fetchNodes(); // Removed to avoid UI flicker, could optimize later
+            try {
+                const response = await fetch('/api/nodes', {
+                    method: 'POST',
+                    body: url,
+                    headers: { 'Content-Type': 'text/plain' } // Spring expects body as string
                 });
-        }, 1000); // 1s update
+                const msg = await response.text();
+                document.getElementById('discoveryLog').innerText = msg;
+                log(msg);
+                fetchNodes(); // Refresh list
+            } catch (e) {
+                log('Error discovering nodes: ' + e);
+            }
+        }
 
-        // Init
+        async function fetchNodes() {
+            const res = await fetch('/api/nodes');
+            registeredNodes = await res.json();
+
+            const list = document.getElementById('nodeList');
+            list.innerHTML = '';
+            registeredNodes.forEach(node => {
+                const li = document.createElement('li');
+                li.innerHTML = `<span>${node}</span> <span style="font-size:0.8em; color:#aaa">Ready</span>`;
+                list.appendChild(li);
+            });
+        }
+
+        async function clearNodes() {
+            if (!confirm("Remove all nodes?")) return;
+            await fetch('/api/nodes', { method: 'DELETE' });
+            fetchNodes();
+            log("Nodes cleared.");
+        }
+
+        async function controlLoad(action) {
+            const type = document.getElementById('loadType').value;
+            const cores = document.getElementById('cpuCores').value;
+            const memoryMB = document.getElementById('memoryMB').value;
+
+            log(`Sending ${action.toUpperCase()} command to cluster...`);
+
+            try {
+                const res = await fetch(`/api/control/${action}?type=${type}&cores=${cores}&memoryMB=${memoryMB}`, { method: 'POST' });
+                const result = await res.text();
+
+                const respBox = document.getElementById('controlResponse');
+                respBox.style.display = 'block';
+                respBox.innerText = result;
+                log(`Command ${action} sent.`);
+            } catch (e) {
+                log('Error sending control: ' + e);
+            }
+        }
+
+        async function updateStats() {
+            if (registeredNodes.length === 0) return;
+
+            try {
+                const res = await fetch('/api/cluster-stats');
+                const stats = await res.json();
+
+                if (!chartInstance) return;
+
+                const labels = [];
+                const cpuData = [];
+                const memData = [];
+
+                stats.forEach(s => {
+                    // Use display name (IP) or pod name if available
+                    const name = s.podName !== "Unknown" ? s.podName : (s.display || s.nodeUrl);
+                    labels.push(name); // Shorten for chart?
+
+                    if (s.error) {
+                        cpuData.push(0);
+                        memData.push(0);
+                    } else {
+                        cpuData.push(s.systemCpuLoad ? (s.systemCpuLoad * 100).toFixed(1) : 0);
+                        // Convert bytes to MB
+                        memData.push(s.usedMemory ? (s.usedMemory / 1024 / 1024).toFixed(1) : 0);
+                    }
+                });
+
+                chartInstance.data.labels = labels;
+                chartInstance.data.datasets[0].data = cpuData;
+                chartInstance.data.datasets[1].data = memData;
+                chartInstance.update();
+
+            } catch (e) {
+                console.error("Stats update failed", e);
+            }
+        }
+
+        // --- UTILS ---
+        function log(msg) {
+            const logs = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            logs.innerText = `[${time}] ${msg}\n` + logs.innerText;
+        }
+
+        document.getElementById('loadType').addEventListener('change', (e) => {
+            if (e.target.value === 'cpu') {
+                document.getElementById('cpuConfig').style.display = 'block';
+                document.getElementById('memConfig').style.display = 'none';
+            } else {
+                document.getElementById('cpuConfig').style.display = 'none';
+                document.getElementById('memConfig').style.display = 'block';
+            }
+        });
+
+        // --- INIT ---
+        initChart('bar');
         fetchNodes();
-        initCharts('bar');
+        setInterval(updateStats, 2000); // Polling every 2s
+
     </script>
 </body>
 
