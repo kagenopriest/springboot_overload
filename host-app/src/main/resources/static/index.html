@@ -4,36 +4,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Distributed Load Test Master v1.4.1</title>
+    <title>Distributed Load Test Master v1.5.0</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg-color: #1a1a1a;
-            --card-bg: #2d2d2d;
-            --text-main: #e0e0e0;
-            --text-muted: #a0a0a0;
+            --bg: #1a1a1a;
+            --card: #2d2d2d;
+            --text: #e0e0e0;
             --accent: #00d2d3;
-            --accent-hover: #01a3a4;
             --danger: #ff6b6b;
             --success: #1dd1a1;
         }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-main);
+            background: var(--bg);
+            color: var(--text);
             margin: 0;
             padding: 20px;
-        }
-
-        h1,
-        h2 {
-            color: var(--accent);
         }
 
         .container {
             max-width: 1200px;
             margin: 0 auto;
+        }
+
+        .card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
         }
 
         .grid {
@@ -42,44 +43,24 @@
             gap: 20px;
         }
 
-        .card {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            margin-bottom: 20px;
-        }
-
-        .control-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            color: var(--text-muted);
-        }
-
         input,
-        select {
+        select,
+        button {
             width: 100%;
             padding: 10px;
-            background: #333;
-            border: 1px solid #444;
-            color: white;
-            border-radius: 4px;
             margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background: #333;
+            color: white;
         }
 
         button {
-            padding: 10px 20px;
             background: var(--accent);
-            color: #000;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            color: black;
             font-weight: bold;
-            transition: opacity 0.2s;
+            cursor: pointer;
+            border: none;
         }
 
         button:hover {
@@ -91,9 +72,9 @@
             color: white;
         }
 
-        button.success {
-            background: var(--success);
-            color: #000;
+        button.secondary {
+            background: #444;
+            color: white;
         }
 
         .flex {
@@ -108,304 +89,233 @@
 
         #nodeList li {
             background: #333;
-            padding: 10px;
-            margin-bottom: 5px;
+            padding: 8px;
+            margin-bottom: 4px;
             border-left: 3px solid var(--accent);
             display: flex;
             justify-content: space-between;
-            align-items: center;
         }
 
-        .chart-container {
-            position: relative;
-            height: 300px;
-            width: 100%;
+        .footer {
+            margin-top: 40px;
+            text-align: right;
+            color: #888;
+            border-top: 1px solid #333;
+            padding-top: 10px;
+        }
+
+        .footer span {
+            color: var(--accent);
         }
 
         pre {
             background: #111;
             padding: 10px;
-            border-radius: 4px;
-            overflow-x: auto;
-            max-height: 200px;
-        }
-
-        /* Footer Signature */
-        .footer {
-            margin-top: 40px;
-            text-align: right;
-            font-size: 0.9rem;
-            color: var(--text-muted);
-            border-top: 1px solid #333;
-            padding-top: 20px;
-        }
-
-        .footer span {
-            color: var(--accent);
-            font-weight: bold;
+            max-height: 150px;
+            overflow: auto;
+            font-size: 0.8em;
         }
     </style>
 </head>
 
 <body>
-
     <div class="container">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h1>Load Test Master v1.4.1</h1>
-            <code>Host Pod: <span id="hostPodName">Loading...</span></code>
+        <div style="display:flex; justify-content:space-between;">
+            <h1 style="color:var(--accent)">Load Test Master v1.4.1</h1>
+            <code style="align-self:center">Host: <span id="hostName">...</span></code>
         </div>
 
-        <!-- Top Section: Discovery & Control -->
+        <!-- Node Management -->
         <div class="card">
-            <h2>1. Node Discovery</h2>
-            <p style="color:var(--text-muted)">Enter the Service URL (ClusterIP/Headless) to auto-discover all pods.</p>
-            <div class="flex">
-                <input type="text" id="serviceUrl" value="http://loadtest-node-headless:8080"
-                    placeholder="http://service-name:8080">
-                <button onclick="discoverNodes()">Discover Nodes</button>
-                <button class="danger" onclick="clearNodes()">Clear All</button>
+            <h2>1. Node Management</h2>
+            <div class="grid" style="grid-template-columns: 1fr 1fr;">
+                <div>
+                    <h3>Add Manual Node</h3>
+                    <p style="font-size:0.8em; color:#aaa">Enter exact IP/Port of Worker Node</p>
+                    <div class="flex">
+                        <input type="text" id="manualIp" placeholder="http://10.106.9.X:30081">
+                        <button onclick="addManualNode()">Add</button>
+                    </div>
+                </div>
+                <div>
+                    <h3>Auto Discovery</h3>
+                    <p style="font-size:0.8em; color:#aaa">Use Headless Service DNS</p>
+                    <div class="flex">
+                        <input type="text" id="discoUrl" value="http://loadtest-node-headless:8080">
+                        <button class="secondary" onclick="discover()">Discover</button>
+                    </div>
+                </div>
             </div>
-            <div id="discoveryLog" style="margin-top:10px; font-size: 0.9em; color: var(--success)"></div>
+            <div id="msgLog" style="color:var(--success); margin-top:5px; font-size:0.9em;"></div>
         </div>
 
         <div class="grid">
-            <!-- Sidebar: Controls & List -->
+            <!-- Controls -->
             <div>
                 <div class="card">
-                    <h2>2. Load Control</h2>
-                    <div class="control-group">
-                        <label>Load Type</label>
-                        <select id="loadType">
-                            <option value="cpu">CPU Stress</option>
-                            <option value="memory">Memory Fill</option>
-                        </select>
-                    </div>
-
-                    <div id="cpuConfig">
-                        <label>CPU Cores</label>
-                        <input type="number" id="cpuCores" value="1" min="1">
-                    </div>
-
-                    <div id="memConfig" style="display:none;">
-                        <label>Memory (MB)</label>
-                        <input type="number" id="memoryMB" value="512" step="128">
+                    <h2>2. Control (All Nodes)</h2>
+                    <label>Type & Intensity</label>
+                    <select id="loadType" onchange="toggleConfig()">
+                        <option value="cpu">CPU Stress</option>
+                        <option value="memory">Memory Stress</option>
+                    </select>
+                    <div id="cpuCfg"><input type="number" id="cores" value="1" placeholder="Cores"></div>
+                    <div id="memCfg" style="display:none"><input type="number" id="memMB" value="512" placeholder="MB">
                     </div>
 
                     <div class="flex">
-                        <button class="success" style="flex:1" onclick="controlLoad('start')">START LOAD</button>
-                        <button class="danger" style="flex:1" onclick="controlLoad('stop')">STOP LOAD</button>
+                        <button onclick="control('start')">START ALL</button>
+                        <button class="danger" onclick="control('stop')">STOP ALL</button>
                     </div>
-                    <pre id="controlResponse" style="margin-top:10px; display:none;"></pre>
+                    <button class="danger" style="margin-top:10px" onclick="clearNodes()">Reset Nodes</button>
                 </div>
-
                 <div class="card">
-                    <h2>Active Nodes</h2>
-                    <ul id="nodeList">
-                        <!-- Nodes populated here -->
-                    </ul>
+                    <h3>Registered Nodes</h3>
+                    <ul id="nodeList"></ul>
                 </div>
             </div>
 
-            <!-- Main Area: Observation -->
+            <!-- Monitor -->
             <div>
                 <div class="card">
                     <div style="display:flex; justify-content:space-between;">
-                        <h2>3. Observation</h2>
-                        <select id="graphType" onchange="updateChartType()" style="width: auto;">
-                            <option value="bar">Bar Chart</option>
-                            <option value="line">Line Chart</option>
-                            <option value="doughnut">Doughnut</option>
-                            <option value="radar">Radar</option>
+                        <h2>3. Monitor</h2>
+                        <select id="chartType" style="width:auto" onchange="initCharts()">
+                            <option value="bar">Bar</option>
+                            <option value="line">Line</option>
                         </select>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="clusterChart"></canvas>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; gap:10px">
+                        <div style="height:250px">
+                            <h4 style="text-align:center; color:#1dd1a1">CPU Usage (%)</h4>
+                            <canvas id="cpuChart"></canvas>
+                        </div>
+                        <div style="height:250px">
+                            <h4 style="text-align:center; color:#00d2d3">Memory (MB)</h4>
+                            <canvas id="memChart"></canvas>
+                        </div>
                     </div>
                 </div>
-
                 <div class="card">
-                    <h3>Logs</h3>
-                    <pre id="logs">System Ready...</pre>
+                    <h3>Response Logs</h3>
+                    <pre id="logs">Waiting...</pre>
+                </div>
+                <!-- Debug Raw Data -->
+                <div class="card" style="margin-top:20px">
+                    <details>
+                        <summary style="cursor:pointer; color:var(--text-muted)">Debug: Raw Stats JSON</summary>
+                        <pre id="debugStats" style="color:#00ff00; font-size:0.7em"></pre>
+                    </details>
                 </div>
             </div>
         </div>
 
-        <div class="footer">
-            Designed and owned by <span>KagenouPriest</span>
-        </div>
+        <div class="footer">Designed and owned by <span>KagenouPriest</span></div>
     </div>
 
     <script>
-        let chartInstance = null;
-        let registeredNodes = [];
+        let nodes = [];
+        let cpuChart = null;
+        let memChart = null;
 
-        // --- CHART SETUP ---
-        const ctx = document.getElementById('clusterChart').getContext('2d');
-
-        function initChart(type) {
-            if (chartInstance) chartInstance.destroy();
-
-            chartInstance = new Chart(ctx, {
-                type: type,
-                data: {
-                    labels: [], // Node Names
-                    datasets: [
-                        {
-                            label: 'CPU Usage (%)',
-                            data: [],
-                            backgroundColor: 'rgba(29, 209, 161, 0.5)',
-                            borderColor: '#1dd1a1',
-                            borderWidth: 1
-                        },
-                        {
-                            label: 'Memory Usage (MB)',
-                            data: [],
-                            backgroundColor: 'rgba(0, 210, 211, 0.5)',
-                            borderColor: '#00d2d3',
-                            borderWidth: 1
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: { beginAtZero: true, grid: { color: '#444' } },
-                        x: { grid: { color: '#444' } }
-                    },
-                    plugins: {
-                        legend: { labels: { color: 'white' } }
-                    }
-                }
-            });
+        async function addManualNode() {
+            const url = document.getElementById('manualIp').value;
+            if (!url) return;
+            const res = await fetch('/api/nodes', { method: 'POST', body: url });
+            log(await res.text());
+            refreshNodes();
         }
 
-        function updateChartType() {
-            const type = document.getElementById('graphType').value;
-            initChart(type);
+        async function discover() {
+            const url = document.getElementById('discoUrl').value;
+            const res = await fetch('/api/nodes/discover', { method: 'POST', body: url });
+            log(await res.text());
+            refreshNodes();
         }
 
-        // --- API CALLS ---
-
-        async function discoverNodes() {
-            const url = document.getElementById('serviceUrl').value;
-            log(`Discovering nodes from: ${url}...`);
-
-            try {
-                const response = await fetch('/api/nodes', {
-                    method: 'POST',
-                    body: url,
-                    headers: { 'Content-Type': 'text/plain' } // Spring expects body as string
-                });
-                const msg = await response.text();
-                document.getElementById('discoveryLog').innerText = msg;
-                log(msg);
-                fetchNodes(); // Refresh list
-            } catch (e) {
-                log('Error discovering nodes: ' + e);
-            }
-        }
-
-        async function fetchNodes() {
+        async function refreshNodes() {
             const res = await fetch('/api/nodes');
-            registeredNodes = await res.json();
-
-            const list = document.getElementById('nodeList');
-            list.innerHTML = '';
-            registeredNodes.forEach(node => {
-                const li = document.createElement('li');
-                li.innerHTML = `<span>${node}</span> <span style="font-size:0.8em; color:#aaa">Ready</span>`;
-                list.appendChild(li);
-            });
+            nodes = await res.json();
+            const ul = document.getElementById('nodeList');
+            ul.innerHTML = nodes.map(n => `<li>${n.replace('http://', '')}</li>`).join('');
         }
 
         async function clearNodes() {
-            if (!confirm("Remove all nodes?")) return;
             await fetch('/api/nodes', { method: 'DELETE' });
-            fetchNodes();
-            log("Nodes cleared.");
+            refreshNodes();
+            log("Nodes cleared");
         }
 
-        async function controlLoad(action) {
+        async function control(action) {
             const type = document.getElementById('loadType').value;
-            const cores = document.getElementById('cpuCores').value;
-            const memoryMB = document.getElementById('memoryMB').value;
+            const cores = document.getElementById('cores').value;
+            const mem = document.getElementById('memMB').value;
+            log(`Sending ${action.toUpperCase()}...`);
+            const res = await fetch(`/api/control/${action}?type=${type}&cores=${cores}&memoryMB=${mem}`, { method: 'POST' });
+            log(await res.text());
+        }
 
-            log(`Sending ${action.toUpperCase()} command to cluster...`);
+        function log(msg) {
+            if (msg.length > 500) msg = msg.substring(0, 500) + "...";
+            document.getElementById('logs').textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + document.getElementById('logs').textContent;
+            document.getElementById('msgLog').innerText = msg.split('\n')[0];
+        }
 
-            try {
-                const res = await fetch(`/api/control/${action}?type=${type}&cores=${cores}&memoryMB=${memoryMB}`, { method: 'POST' });
-                const result = await res.text();
+        function toggleConfig() {
+            const cpu = document.getElementById('loadType').value === 'cpu';
+            document.getElementById('cpuCfg').style.display = cpu ? 'block' : 'none';
+            document.getElementById('memCfg').style.display = cpu ? 'none' : 'block';
+        }
 
-                const respBox = document.getElementById('controlResponse');
-                respBox.style.display = 'block';
-                respBox.innerText = result;
-                log(`Command ${action} sent.`);
-            } catch (e) {
-                log('Error sending control: ' + e);
-            }
+        // Charts
+        const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+        const memCtx = document.getElementById('memChart').getContext('2d');
+
+        function initCharts() {
+            if (cpuChart) cpuChart.destroy();
+            if (memChart) memChart.destroy();
+
+            const type = document.getElementById('chartType').value;
+            const commonOpts = { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } };
+
+            cpuChart = new Chart(cpuCtx, {
+                type: type,
+                data: { labels: [], datasets: [{ label: 'CPU %', data: [], backgroundColor: '#1dd1a1', borderColor: '#1dd1a1' }] },
+                options: commonOpts
+            });
+
+            memChart = new Chart(memCtx, {
+                type: type,
+                data: { labels: [], datasets: [{ label: 'Mem MB', data: [], backgroundColor: '#00d2d3', borderColor: '#00d2d3' }] },
+                options: commonOpts
+            });
         }
 
         async function updateStats() {
-            if (registeredNodes.length === 0) return;
+            if (nodes.length === 0) return;
+            const res = await fetch('/api/cluster-stats');
+            const data = await res.json();
 
-            try {
-                const res = await fetch('/api/cluster-stats');
-                const stats = await res.json();
+            // Labels
+            const labels = data.map(d => d.display || d.nodeUrl);
 
-                if (!chartInstance) return;
+            // Update CPU
+            cpuChart.data.labels = labels;
+            cpuChart.data.datasets[0].data = data.map(d => d.cpuUsage != null ? d.cpuUsage.toFixed(1) : 0);
+            cpuChart.update();
 
-                const labels = [];
-                const cpuData = [];
-                const memData = [];
+            // Update Mem
+            memChart.data.labels = labels;
+            memChart.data.datasets[0].data = data.map(d => d.memoryUsage != null ? d.memoryUsage.toFixed(0) : 0);
+            memChart.update();
 
-                stats.forEach(s => {
-                    // Use display name (IP) or pod name if available
-                    const name = s.podName !== "Unknown" ? s.podName : (s.display || s.nodeUrl);
-                    labels.push(name); // Shorten for chart?
-
-                    if (s.error) {
-                        cpuData.push(0);
-                        memData.push(0);
-                    } else {
-                        cpuData.push(s.systemCpuLoad ? (s.systemCpuLoad * 100).toFixed(1) : 0);
-                        // Convert bytes to MB
-                        memData.push(s.usedMemory ? (s.usedMemory / 1024 / 1024).toFixed(1) : 0);
-                    }
-                });
-
-                chartInstance.data.labels = labels;
-                chartInstance.data.datasets[0].data = cpuData;
-                chartInstance.data.datasets[1].data = memData;
-                chartInstance.update();
-
-            } catch (e) {
-                console.error("Stats update failed", e);
-            }
+            // Debug dump
+            document.getElementById('debugStats').innerText = JSON.stringify(data, null, 2);
         }
 
-        // --- UTILS ---
-        function log(msg) {
-            const logs = document.getElementById('logs');
-            const time = new Date().toLocaleTimeString();
-            logs.innerText = `[${time}] ${msg}\n` + logs.innerText;
-        }
-
-        document.getElementById('loadType').addEventListener('change', (e) => {
-            if (e.target.value === 'cpu') {
-                document.getElementById('cpuConfig').style.display = 'block';
-                document.getElementById('memConfig').style.display = 'none';
-            } else {
-                document.getElementById('cpuConfig').style.display = 'none';
-                document.getElementById('memConfig').style.display = 'block';
-            }
-        });
-
-        // --- INIT ---
-        initChart('bar');
-        fetchNodes();
-        setInterval(updateStats, 2000); // Polling every 2s
-
+        initCharts();
+        refreshNodes();
+        setInterval(updateStats, 2000);
     </script>
 </body>
 

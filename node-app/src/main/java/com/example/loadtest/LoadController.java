@@ -51,7 +51,8 @@ public class LoadController {
             // Cap cores at available processors to prevent total freeze if requested >
             // available
             int available = Runtime.getRuntime().availableProcessors();
-            int targetCores = Math.min(cores, available);
+            // Reserve 1 core for the OS/App to handle HTTP requests (prevent starvation)
+            int targetCores = Math.max(1, Math.min(cores, available - 1));
             if (targetCores < 1)
                 targetCores = 1;
 
@@ -116,7 +117,10 @@ public class LoadController {
         com.sun.management.OperatingSystemMXBean osBean = (com.sun.management.OperatingSystemMXBean) java.lang.management.ManagementFactory
                 .getOperatingSystemMXBean();
 
-        status.put("cpuUsage", osBean.getCpuLoad() * 100);
+        double cpu = osBean.getSystemCpuLoad();
+        if (cpu < 0)
+            cpu = 0;
+        status.put("cpuUsage", cpu * 100);
         status.put("memoryUsage", (osBean.getTotalMemorySize() - osBean.getFreeMemorySize()) / (1024 * 1024));
         status.put("totalMemory", osBean.getTotalMemorySize() / (1024 * 1024));
         status.put("availableProcessors", Runtime.getRuntime().availableProcessors());

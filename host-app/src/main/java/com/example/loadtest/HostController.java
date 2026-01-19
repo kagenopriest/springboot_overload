@@ -18,52 +18,52 @@ public class HostController {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @PostMapping("/nodes")
-    @Operation(summary = "Add Node", description = "Register a new node (e.g., http://loadtest-node-headless:8080). Resolves DNS to find all Pod IPs if Headless Service.")
+    @Operation(summary = "Add Node", description = "Register a new node manually (e.g., http://192.168.1.5:8080).")
     public String addNode(@RequestBody String nodeUrlInput) {
         String nodeUrl = nodeUrlInput.trim();
-        // Ensure protocol exists
         if (!nodeUrl.startsWith("http")) {
             nodeUrl = "http://" + nodeUrl;
         }
 
+        if (!nodes.contains(nodeUrl)) {
+            nodes.add(nodeUrl);
+            return "Node added: " + nodeUrl;
+        }
+        return "Node already exists: " + nodeUrl;
+    }
+
+    @PostMapping("/nodes/discover")
+    @Operation(summary = "Discover Nodes", description = "Discover nodes via DNS (Headless Service)")
+    public String discoverNodes(@RequestBody String serviceUrlInput) {
+        String serviceUrl = serviceUrlInput.trim();
+        if (!serviceUrl.startsWith("http"))
+            serviceUrl = "http://" + serviceUrl;
+
         try {
-            // Parse URL
-            java.net.URI uri = java.net.URI.create(nodeUrl);
+            java.net.URI uri = java.net.URI.create(serviceUrl);
             String hostname = uri.getHost();
             int port = uri.getPort();
             if (port == -1)
-                port = 80; // Default to 80 if not specified
+                port = 80;
 
-            // DNS Resolution
             java.net.InetAddress[] addresses = java.net.InetAddress.getAllByName(hostname);
-            int addedCount = 0;
-            StringBuilder discoveredIps = new StringBuilder();
+            int added = 0;
+            StringBuilder sb = new StringBuilder();
 
             for (java.net.InetAddress addr : addresses) {
                 String ip = addr.getHostAddress();
-                // Construct the direct pod URL
                 String resolvedUrl = "http://" + ip + ":" + port;
-
                 if (!nodes.contains(resolvedUrl)) {
                     nodes.add(resolvedUrl);
-                    addedCount++;
-                    discoveredIps.append(ip).append(", ");
+                    added++;
+                    sb.append(ip).append(", ");
                 }
             }
-
-            if (addedCount == 0) {
-                return "No new nodes added. (Found " + addresses.length + " IPs, but all were already registered).";
-            }
-
-            return "Discovery Successful. Added " + addedCount + " nodes: [" + discoveredIps.toString() + "]";
-
+            if (added == 0)
+                return "No new nodes found from " + hostname + " (Found " + addresses.length + " IPs)";
+            return "Discovered " + added + " nodes: " + sb.toString();
         } catch (Exception e) {
-            // Fallback: If DNS fails or it's a raw IP, just add it directly
-            if (!nodes.contains(nodeUrl)) {
-                nodes.add(nodeUrl);
-                return "DNS Resolution failed, added raw URL: " + nodeUrl;
-            }
-            return "Node already exists: " + nodeUrl;
+            return "Discovery failed: " + e.getMessage();
         }
     }
 
